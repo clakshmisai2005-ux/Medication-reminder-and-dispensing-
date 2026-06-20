@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MedRemind IoT — ESP32 Smart Medication Reminder & Dispensing Device</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.19.0/webfont/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f6ff;--surface:#ffffff;--surface2:#f8faff;--surface3:#eef4ff;
+  --border:#dde6f5;--text:#0f1f3d;--text2:#5470a0;--text3:#9eb3d0;
+  --blue:#2563eb;--blue-l:#dbeafe;--blue-d:#1d4ed8;
+  --green:#16a34a;--green-l:#dcfce7;--green-d:#166534;
+  --amber:#d97706;--amber-l:#fef3c7;
+  --red:#dc2626;--red-l:#fee2e2;
+  --purple:#7c3aed;--purple-l:#ede9fe;
+  --teal:#0d9488;--teal-l:#ccfbf1;
+  --cyan:#0891b2;--cyan-l:#cffafe;
+  --radius:12px;--radius-sm:7px;
+  --shadow:0 1px 4px rgba(37,99,235,.07),0 4px 16px rgba(37,99,235,.06);
+  --shadow-sm:0 1px 3px rgba(0,0,0,.07);
+}
+[data-theme="dark"]{
+  --bg:#08112a;--surface:#0f1f3d;--surface2:#0a1528;--surface3:#0d1a33;
+  --border:#1e3155;--text:#e2ecff;--text2:#7b9fd4;--text3:#3d5a8a;
+  --blue-l:#1a3468;--green-l:#14532d;--amber-l:#6b3100;--red-l:#4c0a0a;--purple-l:#2e1a6e;--teal-l:#0f3833;--cyan-l:#0c3340;
+  --shadow:0 1px 4px rgba(0,0,0,.3);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:236px;background:var(--surface);border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.main{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+/* Sidebar */
+.logo{padding:18px 20px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--blue),#60a5fa);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:0 2px 8px rgba(37,99,235,.3);flex-shrink:0}
+.logo-name{font-weight:700;font-size:15px;color:var(--text);letter-spacing:-.3px}
+.logo-sub{font-size:10px;color:var(--text2);font-weight:500;letter-spacing:.3px;text-transform:uppercase}
+.nav-section{padding:10px 0 2px}
+.nav-label{font-size:10px;font-weight:700;color:var(--text3);padding:4px 20px;text-transform:uppercase;letter-spacing:.9px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px 9px 20px;cursor:pointer;color:var(--text2);transition:all .14s;font-size:13px;font-weight:500;position:relative;margin:1px 8px;border-radius:8px}
+.nav-item:hover{background:var(--surface3);color:var(--text)}
+.nav-item.active{background:var(--blue-l);color:var(--blue);font-weight:600}
+.nav-item.active::before{content:'';position:absolute;left:-8px;top:6px;bottom:6px;width:3px;background:var(--blue);border-radius:0 3px 3px 0}
+.nav-item i{font-size:18px;width:20px;text-align:center}
+.badge{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:auto;min-width:18px;text-align:center}
+.badge.green{background:var(--green)}.badge.amber{background:var(--amber)}
+.sidebar-footer{padding:14px 16px;border-top:1px solid var(--border);margin-top:auto}
+.patient-card{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.patient-avatar{width:28px;height:28px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0}
+/* Topbar */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.topbar-title{font-size:17px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+.topbar-sub{font-size:11px;color:var(--text2);margin-top:1px}
+.spacer{flex:1}
+.content{padding:22px 24px;overflow-y:auto;flex:1}
+/* Chips & Pills */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;border:none;white-space:nowrap}
+.chip.online{background:var(--green-l);color:var(--green)}
+.chip.offline{background:var(--red-l);color:var(--red)}
+.chip.warning{background:var(--amber-l);color:var(--amber)}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.dot.pulse{animation:pulse-dot 1.5s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.7)}}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill.blue{background:var(--blue-l);color:var(--blue)}
+.pill.green{background:var(--green-l);color:var(--green)}
+.pill.amber{background:var(--amber-l);color:var(--amber)}
+.pill.red{background:var(--red-l);color:var(--red)}
+.pill.purple{background:var(--purple-l);color:var(--purple)}
+.pill.teal{background:var(--teal-l);color:var(--teal)}
+.pill.cyan{background:var(--cyan-l);color:var(--cyan)}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 15px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:all .14s;white-space:nowrap;line-height:1}
+.btn:hover{background:var(--surface2);border-color:var(--blue);color:var(--blue)}
+.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 2px 6px rgba(37,99,235,.25)}
+.btn.primary:hover{background:var(--blue-d);border-color:var(--blue-d)}
+.btn.success{background:var(--green-l);color:var(--green-d);border-color:var(--green-l)}
+.btn.success:hover{background:var(--green);color:#fff}
+.btn.danger{background:var(--red-l);color:var(--red);border-color:transparent}
+.btn.danger:hover{background:var(--red);color:#fff}
+.btn.amber{background:var(--amber-l);color:var(--amber);border-color:transparent}
+.btn.sm{padding:5px 10px;font-size:12px;border-radius:6px}
+.btn.xs{padding:3px 8px;font-size:11px;border-radius:5px}
+.btn i{font-size:15px}.btn.sm i{font-size:13px}
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-sm)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.section-title i{color:var(--blue)}
+/* Metric Cards */
+.metric-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+.metric-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:var(--radius) var(--radius) 0 0;background:var(--accent-color,var(--blue))}
+.metric-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;font-size:20px;flex-shrink:0}
+.metric-label{font-size:11px;color:var(--text2);margin-bottom:3px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.metric-value{font-size:28px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-.5px}
+.metric-sub{font-size:11px;color:var(--text3);margin-top:4px;font-weight:500}
+/* Grids */
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.mb-4{margin-bottom:14px}.mb-6{margin-bottom:20px}
+.row{display:flex;align-items:stretch;gap:14px;margin-bottom:14px}
+.row .card{flex:1;min-width:0}
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 12px;font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--border);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface3)}
+/* Forms */
+.form-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:5px}
+.form-group{margin-bottom:12px}
+input[type=text],input[type=date],input[type=time],input[type=number],select,textarea{padding:8px 11px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text);width:100%;transition:border-color .14s;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,31,61,.45);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(2px)}
+.modal{background:var(--surface);border-radius:var(--radius);padding:26px;width:520px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18);border:1px solid var(--border)}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;color:var(--text)}
+/* Progress */
+.progress-bar{background:var(--border);border-radius:10px;height:8px;overflow:hidden}
+.progress-fill{height:100%;border-radius:10px;transition:width .4s ease}
+.progress-bar.thin{height:5px}.progress-bar.thick{height:12px}
+/* Device rows */
+.device-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)}
+.device-row:last-child{border-bottom:none}
+.device-icon{width:34px;height:34px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:17px;flex-shrink:0}
+/* Alarm cards */
+.alarm-card{border-radius:var(--radius);padding:15px;margin-bottom:10px;display:flex;align-items:center;gap:13px;border-left:4px solid}
+.alarm-card.active{background:var(--red-l);border-left-color:var(--red)}
+.alarm-card.upcoming{background:var(--amber-l);border-left-color:var(--amber)}
+.alarm-card.scheduled{background:var(--blue-l);border-left-color:var(--blue)}
+.alarm-card.ok{background:var(--green-l);border-left-color:var(--green)}
+.alarm-icon{width:42px;height:42px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;font-size:20px}
+/* Notifications */
+.notif-item{padding:13px;border-bottom:1px solid var(--border);display:flex;gap:11px;cursor:pointer;transition:background .12s}
+.notif-item:hover{background:var(--surface3)}
+.notif-item.unread{background:var(--surface3)}
+.notif-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:17px}
+.unread-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:5px}
+/* Toggle */
+.toggle{position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0}
+.toggle input{display:none}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:11px;cursor:pointer;transition:.2s}
+.toggle input:checked+.toggle-slider{background:var(--blue)}
+.toggle-slider::after{content:'';position:absolute;width:16px;height:16px;background:#fff;border-radius:50%;top:3px;left:3px;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle input:checked+.toggle-slider::after{transform:translateX(18px)}
+/* Tabs */
+.tab-bar{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:18px;overflow-x:auto}
+.tab{padding:9px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .14s;white-space:nowrap}
+.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab:hover:not(.active){color:var(--text);background:var(--surface3);border-radius:6px 6px 0 0}
+/* Servo */
+.servo-box{background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;text-align:center;transition:border-color .14s}
+.servo-circle{width:72px;height:72px;border-radius:50%;margin:0 auto 12px;border:3px solid;display:flex;align-items:center;justify-content:center;font-size:26px}
+.servo-circle.ok{border-color:var(--green);background:var(--green-l);color:var(--green)}
+.servo-circle.warn{border-color:var(--amber);background:var(--amber-l);color:var(--amber)}
+.servo-circle.empty{border-color:var(--red);background:var(--red-l);color:var(--red)}
+.servo-circle.off{border-color:var(--text3);background:var(--surface3);color:var(--text3)}
+/* Timeline */
+.timeline-item{display:flex;align-items:flex-start;gap:13px;padding-bottom:18px}
+.timeline-item:last-child{padding-bottom:0}
+.timeline-dot-wrap{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.timeline-dot{width:13px;height:13px;border-radius:50%;border:2.5px solid;margin-top:3px;flex-shrink:0}
+.timeline-line{width:2px;flex:1;min-height:22px;margin-top:3px;background:var(--border)}
+/* Compartment status cards */
+.comp-card{border-radius:var(--radius);border:2px solid;padding:16px;text-align:center;transition:all .2s}
+.comp-card.full{border-color:var(--green);background:var(--green-l)}
+.comp-card.half{border-color:var(--amber);background:var(--amber-l)}
+.comp-card.empty{border-color:var(--red);background:var(--red-l)}
+.comp-icon{width:56px;height:56px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:24px}
+/* RTC card accent */
+.rtc-card{background:linear-gradient(135deg,var(--blue-l),var(--purple-l));border:1.5px solid var(--blue);border-radius:var(--radius);padding:18px}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.content>*{animation:fadeSlide .22s ease}
+</style>
+</head>
+<body>
+<div class="layout" id="app">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-icon"><i class="ti ti-pill"></i></div>
+    <div>
+      <div class="logo-name">MedRemind</div>
+      <div class="logo-sub">ESP32 IoT Device</div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Main</div>
+    <div class="nav-item active" data-page="overview"><i class="ti ti-layout-dashboard"></i>Overview</div>
+    <div class="nav-item" data-page="meds"><i class="ti ti-pill"></i>Medications<span class="badge amber">3</span></div>
+    <div class="nav-item" data-page="reminders"><i class="ti ti-bell"></i>Reminders<span class="badge">2</span></div>
+    <div class="nav-item" data-page="dispense"><i class="ti ti-settings-automation"></i>Dispensing</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Insights</div>
+    <div class="nav-item" data-page="analytics"><i class="ti ti-chart-bar"></i>Analytics</div>
+    <div class="nav-item" data-page="notifications"><i class="ti ti-notification"></i>Alerts<span class="badge">4</span></div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-label">Device Status</div>
+    <div class="nav-item" data-page="device"><i class="ti ti-cpu"></i>Device Status</div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="patient-card">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <div class="patient-avatar">RS</div>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--text)">Rahul Sharma</div>
+          <div style="font-size:10px;color:var(--text2)">Patient ID: MR-2025-001</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;color:var(--text2)">3 active medicines</span>
+        <span class="pill green" style="font-size:10px">Active</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:12px;color:var(--text2);font-weight:500">Dark mode</span>
+      <label class="toggle"><input type="checkbox" id="darkToggle" onchange="toggleDark()"><div class="toggle-slider"></div></label>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="pageTitle">Dashboard Overview</div>
+      <div class="topbar-sub" id="pageClock">—</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="chip online" id="esp32Chip"><div class="dot pulse"></div>ESP32 Online</div>
+    <div class="chip online" id="rtcChip" style="gap:5px"><div class="dot"></div>RTC Synced</div>
+    <button class="btn sm" onclick="refreshAnim()"><i class="ti ti-refresh"></i>Refresh</button>
+  </div>
+  <div class="content" id="pageContent"></div>
+</div>
+</div>
+<div id="modalContainer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let darkMode=false, currentPage='overview', charts={};
+
+const meds=[
+  {id:1,name:'Metformin',dosage:'500mg',freq:'Twice daily',morning:true,afternoon:false,night:true,start:'2025-01-01',end:'2025-12-31',color:'blue',taken:true},
+  {id:2,name:'Lisinopril',dosage:'10mg',freq:'Once daily',morning:true,afternoon:false,night:false,start:'2025-01-01',end:'2025-06-30',color:'purple',taken:false},
+  {id:3,name:'Atorvastatin',dosage:'20mg',freq:'Once daily',morning:false,afternoon:false,night:true,start:'2025-01-01',end:'2025-12-31',color:'teal',taken:false},
+];
+
+// Compartment status derived from IR sensor readings
+const compartments=[
+  {slot:'Morning',icon:'ti-sun',irLabel:'IR Sensor 1–2',irStatus:'Medicine Detected',state:'full',statusLabel:'Full',statusIcon:'✅',color:'green',servo:'Servo Motor 1',servoGPIO:'GPIO 18',lastDispense:'Today 07:30 AM',servoState:'ok'},
+  {slot:'Afternoon',icon:'ti-sun-high',irLabel:'IR Sensor 3',irStatus:'Low Detection',state:'half',statusLabel:'Half Full',statusIcon:'⚠️',color:'amber',servo:'Servo Motor 2',servoGPIO:'GPIO 19',lastDispense:'Yesterday 1:00 PM',servoState:'warn'},
+  {slot:'Night',icon:'ti-moon',irLabel:'IR Sensor 4–5',irStatus:'Not Detected',state:'empty',statusLabel:'Empty',statusIcon:'❌',color:'red',servo:'Servo Motor 3',servoGPIO:'GPIO 21',lastDispense:'Yesterday 10:00 PM',servoState:'empty'},
+];
+
+const weekData=[72,85,90,68,95,88,82];
+const monthData=[78,82,75,90,85,92,88,76,82,79,85,91,87,83,90,78,84,88,92,85,79,83,87,91,84,78,82,86,90,85];
+
+const notifs=[
+  {type:'reminder',icon:'ti-bell-ringing',color:'amber',title:'Lisinopril 10mg due now',body:'Morning dose overdue since 8:00 AM — please take immediately',time:'2 min ago',read:false},
+  {type:'missed',icon:'ti-alert-circle',color:'red',title:'Missed dose: Atorvastatin 20mg',body:"Last night's dose was not acknowledged — marked as missed",time:'8 hrs ago',read:false},
+  {type:'device',icon:'ti-wifi-off',color:'blue',title:'Device reconnected',body:'ESP32 restored connection after 3-minute outage',time:'2 days ago',read:true},
+  {type:'device',icon:'ti-cpu',color:'teal',title:'RTC clock corrected',body:'DS3231 auto-corrected +2 seconds at sync cycle',time:'3 days ago',read:true},
+];
+
+const scheduleToday=[
+  {time:'07:30 AM',med:'Metformin',dose:'500mg',slot:'Morning',status:'taken'},
+  {time:'08:00 AM',med:'Lisinopril',dose:'10mg',slot:'Morning',status:'missed'},
+  {time:'08:00 PM',med:'Metformin',dose:'500mg',slot:'Night',status:'upcoming'},
+  {time:'10:00 PM',med:'Atorvastatin',dose:'20mg',slot:'Night',status:'upcoming'},
+];
+
+const reminderLog=[
+  {time:'07:30 AM',med:'Metformin 500mg',action:'Dose Taken',via:'Button 1',status:'taken'},
+  {time:'08:00 AM',med:'Lisinopril 10mg',action:'Snoozed ×2 then missed',via:'Button 2',status:'missed'},
+  {time:'Yesterday 10PM',med:'Atorvastatin 20mg',action:'Acknowledged',via:'Button 1',status:'taken'},
+  {time:'Yesterday 8PM',med:'Metformin 500mg',action:'Dose Taken',via:'Auto',status:'taken'},
+];
+
+/* Clock */
+function pad(n){return n<10?'0'+n:n}
+function updateClock(){
+  const now=new Date();
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const ampm=now.getHours()>=12?'PM':'AM';
+  const h=now.getHours()%12||12;
+  document.getElementById('pageClock').textContent=`${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()} — ${pad(h)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ampm}`;
+  // Also update RTC display if visible
+  const rtcTime=document.getElementById('rtcLiveTime');
+  if(rtcTime) rtcTime.textContent=`${pad(h)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ampm}`;
+  const rtcDate=document.getElementById('rtcLiveDate');
+  if(rtcDate) rtcDate.textContent=`${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+}
+setInterval(updateClock,1000); updateClock();
+
+function toggleDark(){
+  darkMode=!darkMode;
+  document.documentElement.setAttribute('data-theme',darkMode?'dark':'');
+  if(currentPage==='analytics')refreshCharts();
+}
+
+document.querySelectorAll('.nav-item[data-page]').forEach(el=>{
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    el.classList.add('active');
+    const titles={overview:'Dashboard Overview',meds:'Medication Management',reminders:'Reminder Monitoring',dispense:'Dispensing Control',analytics:'Analytics & Compliance',notifications:'Alerts & Notifications',device:'Device Status'};
+    document.getElementById('pageTitle').textContent=titles[el.dataset.page]||'';
+    currentPage=el.dataset.page;
+    Object.values(charts).forEach(c=>c.destroy&&c.destroy()); charts={};
+    render();
+  });
+});
+
+function refreshAnim(){document.querySelectorAll('.metric-value').forEach(e=>{e.style.opacity='.3';setTimeout(()=>e.style.opacity='1',400)});}
+
+function render(){
+  const c=document.getElementById('pageContent');
+  const map={overview:overviewHTML,meds:medsHTML,reminders:remindersHTML,dispense:dispenseHTML,analytics:analyticsHTML,notifications:notifHTML,device:deviceHTML};
+  c.innerHTML=(map[currentPage]||(() =>''))();
+  if(currentPage==='analytics')setTimeout(buildCharts,80);
+}
+function refreshCharts(){if(currentPage==='analytics'){Object.values(charts).forEach(c=>c.destroy&&c.destroy());charts={};setTimeout(buildCharts,80);}}
+
+/* ══ OVERVIEW ══ */
+function overviewHTML(){
+  const now=new Date();
+  const h=now.getHours()%12||12;
+  const ampm=now.getHours()>=12?'PM':'AM';
+  const timeStr=`${pad(h)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ampm}`;
+  const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dateStr=`${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  return `
+  <!-- RTC Monitoring Card -->
+  <div class="rtc-card mb-6" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+    <div style="width:46px;height:46px;border-radius:12px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3);flex-shrink:0"><i class="ti ti-clock-bolt"></i></div>
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px">DS3231 Real-Time Clock — Live</div>
+      <div style="font-size:22px;font-weight:800;color:var(--text);letter-spacing:-.3px" id="rtcLiveTime">${timeStr}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px" id="rtcLiveDate">${dateStr}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--green)"><i class="ti ti-circle-check" style="font-size:16px"></i>DS3231 Connected ✅</div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--text2)"><i class="ti ti-battery" style="font-size:16px"></i>Battery Backed · I²C 0x68</div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--text2)"><i class="ti ti-wave-sine" style="font-size:16px"></i>Drift: +00:00:02 (auto-corrected)</div>
+    </div>
+    <div style="border-left:1.5px solid var(--border);padding-left:16px;text-align:center">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--blue);letter-spacing:.5px">RTC Status</div>
+      <div class="chip online" style="margin-top:4px"><div class="dot pulse"></div>Synced</div>
+    </div>
+  </div>
+
+  <!-- Metric KPIs -->
+  <div class="grid-4 mb-6" style="grid-template-columns:repeat(auto-fit,minmax(155px,1fr))">
+    <div class="metric-card" style="--accent-color:var(--blue)">
+      <div class="metric-icon" style="background:var(--blue-l);color:var(--blue)"><i class="ti ti-pill"></i></div>
+      <div class="metric-label">Scheduled Today</div>
+      <div class="metric-value">4</div>
+      <div class="metric-sub">doses · 3 medicines</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--green)">
+      <div class="metric-icon" style="background:var(--green-l);color:var(--green)"><i class="ti ti-check"></i></div>
+      <div class="metric-label">Taken Today</div>
+      <div class="metric-value" style="color:var(--green)">1</div>
+      <div class="metric-sub">1 dose acknowledged</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--red)">
+      <div class="metric-icon" style="background:var(--red-l);color:var(--red)"><i class="ti ti-alert-triangle"></i></div>
+      <div class="metric-label">Missed Doses</div>
+      <div class="metric-value" style="color:var(--red)">1</div>
+      <div class="metric-sub">Lisinopril morning</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--amber)">
+      <div class="metric-icon" style="background:var(--amber-l);color:var(--amber)"><i class="ti ti-clock"></i></div>
+      <div class="metric-label">Next Reminder</div>
+      <div class="metric-value" style="font-size:18px;margin-top:2px">8:00 PM</div>
+      <div class="metric-sub">Metformin — via RTC alarm</div>
+    </div>
+  </div>
+
+  <!-- Compartment Status (IR Sensors) -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-radar"></i>Compartment Status — IR Sensor Readings</div>
+      <span class="pill blue">5 IR Sensors Active</span>
+    </div>
+    <div class="grid-3" style="gap:12px">
+      ${compartments.map(c=>`
+      <div class="comp-card ${c.state}">
+        <div class="comp-icon" style="background:${c.state==='full'?'var(--green)':c.state==='half'?'var(--amber)':'var(--red)'}">
+          <i class="ti ${c.icon}" style="color:#fff;font-size:22px"></i>
+        </div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:4px;color:var(--text)">${c.slot} Compartment</div>
+        <div style="font-size:22px;margin-bottom:4px">${c.statusIcon}</div>
+        <span class="pill ${c.color}" style="font-size:12px;padding:4px 12px">${c.statusLabel}</span>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.08)">
+          <div style="font-size:11px;font-weight:600;color:var(--text2)">${c.irLabel}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${c.irStatus}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:12px;color:var(--text2)">
+      <i class="ti ti-info-circle" style="color:var(--blue);margin-right:6px"></i>
+      <strong style="color:var(--text)">IR Sensor Logic:</strong> Medicine Detected → Full ✅ &nbsp;|&nbsp; Low/Partial → Half Full ⚠️ &nbsp;|&nbsp; Not Detected → Empty ❌
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1.5">
+      <div class="card-header">
+        <div class="section-title"><i class="ti ti-clock"></i>Today's Medication Schedule</div>
+        <span class="pill blue">June 20, 2025</span>
+      </div>
+      <table>
+        <thead><tr><th>Time</th><th>Medicine</th><th>Dose</th><th>Slot</th><th>Status</th></tr></thead>
+        <tbody>
+          ${scheduleToday.map(h=>`<tr>
+            <td style="font-family:monospace;font-size:12px;color:var(--text2)">${h.time}</td>
+            <td><strong>${h.med}</strong></td>
+            <td>${h.dose}</td>
+            <td><span class="pill ${h.slot==='Morning'?'blue':h.slot==='Afternoon'?'amber':'purple'}">${h.slot==='Morning'?'🌅':h.slot==='Afternoon'?'🌤':'🌙'} ${h.slot}</span></td>
+            <td><span class="pill ${h.status==='taken'?'green':h.status==='missed'?'red':'cyan'}">${h.status==='taken'?'✓ Taken':h.status==='missed'?'✗ Missed':'⏱ Upcoming'}</span></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="flex:1;min-width:240px">
+      <div class="section-title" style="margin-bottom:14px"><i class="ti ti-bell-ringing"></i>Next Reminder</div>
+      <div style="background:var(--amber-l);border:1.5px solid var(--amber);border-radius:10px;padding:15px;margin-bottom:14px">
+        <div style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">⏰ RTC ALARM — 8:00 PM</div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);letter-spacing:-.3px">Metformin 500mg</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">🌙 Night — Servo Motor 1 → Dispense</div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn success sm" onclick="ackDose()"><i class="ti ti-check"></i>Take Now</button>
+          <button class="btn sm" onclick="snoozeDose()"><i class="ti ti-clock"></i>Snooze 10m</button>
+        </div>
+      </div>
+      <div class="section-title" style="font-size:13px;margin-bottom:8px"><i class="ti ti-activity"></i>Today's Adherence</div>
+      <div class="progress-bar thick mb-4"><div class="progress-fill" style="width:25%;background:var(--amber)"></div></div>
+      <div style="font-size:12px;color:var(--text2);font-weight:500">25% — 1 of 4 doses taken</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-calendar"></i>Reminder Timeline</div>
+    </div>
+    ${[
+      {t:'7:30 AM',m:'Metformin 500mg',s:'taken',c:'green',hw:'Servo Motor 1 · Morning Compartment'},
+      {t:'8:00 AM',m:'Lisinopril 10mg',s:'missed',c:'red',hw:'OLED + Buzzer alert'},
+      {t:'8:00 PM',m:'Metformin 500mg',s:'upcoming',c:'blue',hw:'RTC DS3231 alarm → Servo Motor 1'},
+      {t:'10:00 PM',m:'Atorvastatin 20mg',s:'upcoming',c:'blue',hw:'RTC DS3231 alarm → Servo Motor 3'},
+    ].map((r,i,a)=>`
+    <div class="timeline-item">
+      <div class="timeline-dot-wrap">
+        <div class="timeline-dot" style="border-color:var(--${r.c});background:${r.s!=='upcoming'?'var(--'+r.c+')':'transparent'}"></div>
+        ${i<a.length-1?'<div class="timeline-line"></div>':''}
+      </div>
+      <div style="padding-top:1px;flex:1">
+        <div style="font-size:11px;font-weight:700;color:var(--text3);font-family:monospace">${r.t}</div>
+        <div style="font-weight:600;font-size:13px;margin-top:1px">${r.m}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:1px"><i class="ti ti-cpu" style="font-size:11px"></i> ${r.hw}</div>
+        <span class="pill ${r.c}" style="margin-top:3px">${r.s==='taken'?'✓ Taken':r.s==='missed'?'✗ Missed':'⏱ Upcoming'}</span>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+/* ══ MEDICATIONS ══ */
+function medsHTML(){
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="color:var(--text2);font-size:13px;font-weight:500">${meds.length} medicines registered</div>
+    <button class="btn primary" onclick="showAddMed()"><i class="ti ti-plus"></i>Add Medicine</button>
+  </div>
+  <div class="card mb-4">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-pill"></i>Medicine Registry</div>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Schedule</th><th>Compartment</th><th>Period</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        ${meds.map((m,i)=>{
+          const slots=[m.morning?'Morning':null,m.afternoon?'Afternoon':null,m.night?'Night':null].filter(Boolean);
+          const compMap={Morning:'Morning Compartment → Servo 1',Afternoon:'Afternoon Compartment → Servo 2',Night:'Night Compartment → Servo 3'};
+          return `<tr>
+            <td><div style="display:flex;align-items:center;gap:9px">
+              <div style="width:30px;height:30px;border-radius:8px;background:var(--${m.color}-l);color:var(--${m.color});display:flex;align-items:center;justify-content:center;font-size:16px"><i class="ti ti-pill"></i></div>
+              <div style="font-weight:700">${m.name}</div>
+            </div></td>
+            <td><strong>${m.dosage}</strong></td>
+            <td>${m.freq}</td>
+            <td style="display:flex;gap:4px;flex-wrap:wrap;padding-top:10px">
+              ${m.morning?'<span class="pill blue">🌅 AM</span>':''}
+              ${m.afternoon?'<span class="pill amber">🌤 PM</span>':''}
+              ${m.night?'<span class="pill purple">🌙 Night</span>':''}
+            </td>
+            <td style="font-size:11px;color:var(--text2)">${slots.map(s=>`<div>${compMap[s]}</div>`).join('')}</td>
+            <td style="font-size:12px;color:var(--text2)">${m.start}<br>→ ${m.end}</td>
+            <td><span class="pill green">Active</span></td>
+            <td><div style="display:flex;gap:6px">
+              <button class="btn sm" onclick="showEditMed(${m.id})"><i class="ti ti-edit"></i></button>
+              <button class="btn sm danger" onclick="deleteMed(${m.id})"><i class="ti ti-trash"></i></button>
+            </div></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div class="grid-3">
+    ${meds.map(m=>`
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:36px;height:36px;border-radius:10px;background:var(--${m.color}-l);color:var(--${m.color});display:flex;align-items:center;justify-content:center;font-size:19px"><i class="ti ti-pill"></i></div>
+        <div><div style="font-weight:700">${m.name}</div><div style="font-size:11px;color:var(--text2)">${m.dosage} · ${m.freq}</div></div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
+        ${m.morning?'<span class="pill blue">🌅 Morning</span>':''}
+        ${m.afternoon?'<span class="pill amber">🌤 Afternoon</span>':''}
+        ${m.night?'<span class="pill purple">🌙 Night</span>':''}
+      </div>
+      <div style="font-size:11px;color:var(--text2);border-top:1px solid var(--border);padding-top:8px">
+        <div>📅 ${m.start} → ${m.end}</div>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+/* ══ REMINDERS ══ */
+function remindersHTML(){
+  return `
+  <div class="tab-bar">
+    <div class="tab active">Active Alarms</div>
+    <div class="tab">Upcoming</div>
+    <div class="tab">History Log</div>
+  </div>
+
+  <div class="alarm-card active" style="margin-bottom:10px">
+    <div class="alarm-icon" style="background:var(--red)"><i class="ti ti-bell-ringing"></i></div>
+    <div style="flex:1">
+      <div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.5px">⚠ Active Alarm — Overdue</div>
+      <div style="font-weight:700;font-size:15px;margin-top:2px">Lisinopril 10mg</div>
+      <div style="font-size:12px;color:var(--text2)">Morning dose — was due at 8:00 AM (overdue by 1h 22m)</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">OLED SSD1306 displaying alert · Buzzer active (GPIO 25) · ESP32 polling push buttons</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <button class="btn success sm" onclick="ackDose()"><i class="ti ti-check"></i>Acknowledge</button>
+      <button class="btn sm" onclick="snoozeDose()"><i class="ti ti-clock"></i>Snooze 10m</button>
+    </div>
+  </div>
+
+  <div class="alarm-card upcoming" style="margin-bottom:10px">
+    <div class="alarm-icon" style="background:var(--amber)"><i class="ti ti-clock"></i></div>
+    <div style="flex:1">
+      <div style="font-size:10px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px">Upcoming</div>
+      <div style="font-weight:700;font-size:14px;margin-top:1px">Metformin 500mg</div>
+      <div style="font-size:12px;color:var(--text2)">Night dose at 8:00 PM — RTC DS3231 alarm trigger — Servo Motor 1</div>
+    </div>
+    <span class="pill amber">6h 38m</span>
+  </div>
+  <div class="alarm-card scheduled" style="margin-bottom:20px">
+    <div class="alarm-icon" style="background:var(--blue)"><i class="ti ti-moon"></i></div>
+    <div style="flex:1">
+      <div style="font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px">Scheduled</div>
+      <div style="font-weight:700;font-size:14px;margin-top:1px">Atorvastatin 20mg</div>
+      <div style="font-size:12px;color:var(--text2)">Night dose at 10:00 PM — RTC DS3231 alarm trigger — Servo Motor 3</div>
+    </div>
+    <span class="pill blue">8h 38m</span>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-history"></i>Reminder History Log</div>
+      <span class="pill blue">Last 24 hours</span>
+    </div>
+    <table>
+      <thead><tr><th>Time</th><th>Medicine</th><th>Action</th><th>Via</th><th>Result</th></tr></thead>
+      <tbody>
+        ${reminderLog.map(r=>`<tr>
+          <td style="font-family:monospace;font-size:12px;color:var(--text2)">${r.time}</td>
+          <td><strong>${r.med}</strong></td>
+          <td>${r.action}</td>
+          <td><span class="pill cyan">${r.via}</span></td>
+          <td><span class="pill ${r.status==='taken'?'green':'red'}">${r.status==='taken'?'✓ Taken':'✗ Missed'}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="section-title" style="margin-bottom:14px"><i class="ti ti-device-mobile"></i>Hardware Reminder Flow</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;text-align:center">
+      ${[
+        {i:'ti-clock-bolt',l:'RTC DS3231',s:'Time trigger'},
+        {i:'ti-cpu',l:'ESP32',s:'Checks schedule'},
+        {i:'ti-device-desktop',l:'OLED SSD1306',s:'Shows medicine'},
+        {i:'ti-volume',l:'Buzzer',s:'Beeps alert'},
+        {i:'ti-hand-click',l:'Push Button',s:'User responds'},
+        {i:'ti-settings-automation',l:'Servo Motor',s:'Dispenses dose'},
+        {i:'ti-wifi',l:'Dashboard',s:'Status logged'}
+      ].map((x,i,a)=>`
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--blue-l);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:22px"><i class="ti ${x.i}"></i></div>
+          <div style="font-size:12px;font-weight:700">${x.l}</div>
+          <div style="font-size:10px;color:var(--text2)">${x.s}</div>
+          ${i<a.length-1?'<div style="font-size:18px;color:var(--blue)">→</div>':''}
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ══ DISPENSING ══ */
+function dispenseHTML(){
+  return `
+  <div style="background:var(--blue-l);border:1.5px solid var(--blue);border-radius:var(--radius);padding:13px 16px;margin-bottom:18px;display:flex;align-items:center;gap:10px">
+    <i class="ti ti-info-circle" style="color:var(--blue);font-size:18px"></i>
+    <div style="font-size:13px;color:var(--text2)"><strong style="color:var(--text)">Servo-Based Dispensing:</strong> 3× SG90 Servo Motors handle Morning, Afternoon, and Night compartments. IR sensors confirm medicine presence before dispensing. ESP32 controls all servos via PWM.</div>
+  </div>
+
+  <div class="grid-3 mb-6">
+    ${compartments.map(c=>`
+    <div class="servo-box" style="border-color:${c.state==='full'?'var(--green)':c.state==='half'?'var(--amber)':'var(--red)'}">
+      <div class="servo-circle ${c.servoState}"><i class="ti ${c.icon}"></i></div>
+      <div style="font-weight:700;font-size:15px;margin-bottom:2px">${c.slot} Compartment</div>
+      <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:2px">${c.servo}</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">${c.servoGPIO} · SG90 Motor</div>
+      <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:8px">
+        <span class="pill ${c.color}">${c.statusIcon} ${c.statusLabel}</span>
+        <span class="pill cyan"><i class="ti ti-radar" style="font-size:10px"></i> IR: ${c.irStatus}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Last dispense: ${c.lastDispense}</div>
+      ${c.state!=='empty'?
+        `<button class="btn sm primary" onclick="dispense('${c.slot}')"><i class="ti ti-settings-automation"></i>Manual Dispense</button>`:
+        `<button class="btn sm danger" disabled style="cursor:not-allowed;opacity:.6"><i class="ti ti-alert-triangle"></i>Compartment Empty</button>`
+      }
+    </div>`).join('')}
+  </div>
+
+  <div class="row">
+    <div class="card" style="flex:1.6">
+      <div class="card-header">
+        <div class="section-title"><i class="ti ti-history"></i>Dispensing History</div>
+        <span class="pill teal">Last 48 hours</span>
+      </div>
+      <table>
+        <thead><tr><th>Time</th><th>Medicine</th><th>Compartment</th><th>Servo</th><th>Method</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td style="font-family:monospace;font-size:12px">07:30 AM</td><td>Metformin 500mg</td><td><span class="pill blue">🌅 Morning</span></td><td><span class="pill cyan">Servo Motor 1</span></td><td>Auto</td><td><span class="pill green">✓ Success</span></td></tr>
+          <tr><td style="font-family:monospace;font-size:12px">08:00 AM</td><td>Lisinopril 10mg</td><td><span class="pill blue">🌅 Morning</span></td><td><span class="pill cyan">Servo Motor 1</span></td><td>Auto</td><td><span class="pill red">✗ Missed</span></td></tr>
+          <tr><td style="font-family:monospace;font-size:12px">Yesterday 10 PM</td><td>Atorvastatin 20mg</td><td><span class="pill purple">🌙 Night</span></td><td><span class="pill cyan">Servo Motor 3</span></td><td>Auto</td><td><span class="pill green">✓ Success</span></td></tr>
+          <tr><td style="font-family:monospace;font-size:12px">Yesterday 8 PM</td><td>Metformin 500mg</td><td><span class="pill purple">🌙 Night</span></td><td><span class="pill cyan">Servo Motor 1</span></td><td>Manual</td><td><span class="pill green">✓ Success</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="flex:1">
+      <div class="section-title" style="margin-bottom:14px"><i class="ti ti-settings-automation"></i>Servo Motor Status</div>
+      ${compartments.map((c,i)=>`
+      <div class="device-row">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div class="device-icon" style="color:var(--${c.color})"><i class="ti ti-settings-automation"></i></div>
+          <div>
+            <div style="font-weight:600">${c.servo}</div>
+            <div style="font-size:11px;color:var(--text2)">${c.slot} Compartment · ${c.servoGPIO}</div>
+          </div>
+        </div>
+        <span class="pill ${c.servoState==='ok'?'green':c.servoState==='warn'?'amber':'red'}">${c.servoState==='ok'?'Active':c.servoState==='warn'?'Standby':'Idle'}</span>
+      </div>`).join('')}
+      <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px">
+        <div style="font-size:12px;color:var(--text2)">Total dispenses today: <strong>1</strong></div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px">All time: <strong>247</strong> dispenses</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ══ ANALYTICS ══ */
+function analyticsHTML(){
+  const avg=Math.round(weekData.reduce((a,b)=>a+b,0)/weekData.length);
+  const color=avg>=80?'var(--green)':avg>=60?'var(--amber)':'var(--red)';
+  return `
+  <div class="grid-3 mb-6" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+    <div class="metric-card" style="--accent-color:${color}">
+      <div class="metric-label">7-Day Adherence</div>
+      <div class="metric-value" style="color:${color}">${avg}%</div>
+      <div class="metric-sub">↑ +6% vs last week</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--blue)">
+      <div class="metric-label">Monthly Average</div>
+      <div class="metric-value">84%</div>
+      <div class="metric-sub">vs 79% last month</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--red)">
+      <div class="metric-label">Missed This Week</div>
+      <div class="metric-value" style="color:var(--red)">2</div>
+      <div class="metric-sub">Lisinopril · Atorvastatin</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--purple)">
+      <div class="metric-label">Doses Scheduled</div>
+      <div class="metric-value">28</div>
+      <div class="metric-sub">this week</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="card" style="flex:1.4">
+      <div class="card-header">
+        <div class="section-title"><i class="ti ti-chart-bar"></i>Weekly Compliance</div>
+        <span class="pill green">This week</span>
+      </div>
+      <div style="height:200px;position:relative"><canvas id="weekChart"></canvas></div>
+    </div>
+    <div class="card" style="flex:0.8">
+      <div class="card-header">
+        <div class="section-title"><i class="ti ti-chart-pie"></i>By Compartment</div>
+      </div>
+      <div style="height:200px;position:relative"><canvas id="medChart"></canvas></div>
+      <div style="margin-top:12px">
+        ${[
+          {l:'Morning Compartment',v:90,c:'#16a34a'},
+          {l:'Afternoon Compartment',v:75,c:'#d97706'},
+          {l:'Night Compartment',v:65,c:'#dc2626'}
+        ].map(m=>`
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <div style="width:10px;height:10px;border-radius:3px;background:${m.c};flex-shrink:0"></div>
+          <div style="font-size:12px;flex:1">${m.l}</div>
+          <div style="font-size:12px;font-weight:700">${m.v}%</div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="card mb-4">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-chart-line"></i>30-Day Trend</div>
+      <span class="pill blue">June 2025</span>
+    </div>
+    <div style="height:160px;position:relative"><canvas id="monthChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-award"></i>Adherence by Medicine</div>
+      <span class="pill ${avg>=80?'green':'amber'}">${avg>=80?'Good':'Fair'} Adherence</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+      ${[{label:'Metformin 500mg',val:90,c:'#16a34a'},{label:'Lisinopril 10mg',val:75,c:'#d97706'},{label:'Atorvastatin 20mg',val:65,c:'#dc2626'}].map(m=>`
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px">
+          <span style="font-weight:600">${m.label}</span>
+          <span style="font-weight:700;color:${m.c}">${m.val}%</span>
+        </div>
+        <div class="progress-bar thick"><div class="progress-fill" style="width:${m.val}%;background:${m.c}"></div></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">${m.val>=80?'Excellent':'Needs improvement'}</div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ══ NOTIFICATIONS ══ */
+function notifHTML(){
+  const unread=notifs.filter(n=>!n.read).length;
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div>
+      <div style="font-size:15px;font-weight:700;color:var(--text)">${unread} Unread Alert${unread!==1?'s':''}</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:1px">Reminders, missed doses, device events</div>
+    </div>
+    <button class="btn sm" onclick="markAllRead()"><i class="ti ti-checks"></i>Mark all read</button>
+  </div>
+  <div class="tab-bar">
+    <div class="tab active">All (${notifs.length})</div>
+    <div class="tab">Reminders</div>
+    <div class="tab">Missed Doses</div>
+    <div class="tab">Device</div>
+  </div>
+  <div class="card">
+    ${notifs.map((n,i)=>`
+    <div class="notif-item ${!n.read?'unread':''}" onclick="markRead(${i})">
+      <div class="notif-icon" style="background:var(--${n.color}-l);color:var(--${n.color})"><i class="ti ${n.icon}"></i></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:${n.read?'500':'700'};font-size:13px;color:var(--text)">${n.title}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${n.body}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px"><i class="ti ti-clock" style="font-size:10px"></i> ${n.time}</div>
+      </div>
+      ${!n.read?'<div class="unread-dot"></div>':'<i class="ti ti-check" style="color:var(--text3);font-size:14px;margin-top:4px"></i>'}
+    </div>`).join('')}
+  </div>`;
+}
+
+/* ══ DEVICE MONITOR ══ */
+function deviceHTML(){
+  const now=new Date();
+  const h=now.getHours()%12||12;
+  const ampm=now.getHours()>=12?'PM':'AM';
+  const timeStr=`${pad(h)}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ampm}`;
+
+  const devices=[
+    {name:'ESP32 Dev Module',icon:'ti-cpu',color:'green',status:'online',val:'Connected · 4h 22m uptime',detail:'Dual-core Xtensa LX6 · 240 MHz'},
+    {name:'Wi-Fi Module',icon:'ti-wifi',color:'green',status:'online',val:'MedNet_2.4G · −67dBm · WPA2',detail:'IP: 192.168.1.42 · Ch 6'},
+    {name:'DS3231 RTC Module',icon:'ti-clock-bolt',color:'green',status:'online',val:`Synced · Current: ${timeStr}`,detail:'I²C 0x68 · Battery backed · Drift: +2s'},
+    {name:'SSD1306 OLED Display',icon:'ti-device-desktop',color:'green',status:'online',val:'128×64 px · Brightness 80%',detail:'I²C 0x3C · 1.3" · Showing schedule'},
+    {name:'Buzzer',icon:'ti-volume',color:'green',status:'online',val:'Active · GPIO 25',detail:'3.3V PWM · 2 kHz tone'},
+    {name:'Servo Motor 1 (Morning)',icon:'ti-settings-automation',color:'green',status:'online',val:'GPIO 18 · SG90 · Active',detail:'Last used: 07:30 AM · 0–90° range'},
+    {name:'Servo Motor 2 (Afternoon)',icon:'ti-settings-automation',color:'amber',status:'standby',val:'GPIO 19 · SG90 · Standby',detail:'Last used: Yesterday 1:00 PM'},
+    {name:'Servo Motor 3 (Night)',icon:'ti-settings-automation',color:'teal',status:'idle',val:'GPIO 21 · SG90 · Ready',detail:'Last used: Yesterday 10:00 PM'},
+    {name:'IR Sensor 1 (Morning Front)',icon:'ti-radar',color:'green',status:'online',val:'GPIO 34 · Medicine Detected',detail:'Morning Compartment · Signal: HIGH'},
+    {name:'IR Sensor 2 (Morning Rear)',icon:'ti-radar',color:'green',status:'online',val:'GPIO 35 · Medicine Detected',detail:'Morning Compartment · Signal: HIGH'},
+    {name:'IR Sensor 3 (Afternoon)',icon:'ti-radar',color:'amber',status:'warning',val:'GPIO 32 · Low Detection',detail:'Afternoon Compartment · Signal: LOW'},
+    {name:'IR Sensor 4 (Night Front)',icon:'ti-radar',color:'red',status:'empty',val:'GPIO 26 · Not Detected',detail:'Night Compartment · No signal'},
+    {name:'IR Sensor 5 (Night Rear)',icon:'ti-radar',color:'red',status:'empty',val:'GPIO 27 · Not Detected',detail:'Night Compartment · No signal'},
+    {name:'Push Button 1 (Acknowledge)',icon:'ti-hand-click',color:'green',status:'online',val:'GPIO 36 · Active LOW',detail:'Last press: 07:30 AM'},
+    {name:'Push Button 2 (Snooze)',icon:'ti-hand-click',color:'green',status:'online',val:'GPIO 39 · Active LOW',detail:'Last press: 08:05 AM'},
+    {name:'Push Button 3 (Menu/Next)',icon:'ti-hand-click',color:'green',status:'online',val:'GPIO 33 · Active LOW',detail:'Last press: 07:28 AM'},
+    {name:'Battery Power System',icon:'ti-battery-2',color:'green',status:'online',val:'3.7V LiPo · 78% charge',detail:'TP4056 charger · ~6h remaining'},
+  ];
+
+  const statusColor={'online':'green','standby':'amber','warning':'amber','empty':'red','idle':'teal'};
+  const statusLabel={'online':'Online','standby':'Standby','warning':'Warning','empty':'Empty','idle':'Ready'};
+
+  return `
+  <div class="grid-4 mb-6" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+    <div class="metric-card" style="--accent-color:var(--green)">
+      <div class="metric-label">System Uptime</div><div class="metric-value">4h 22m</div><div class="metric-sub">since last boot</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--blue)">
+      <div class="metric-label">Free Heap</div><div class="metric-value">186 KB</div><div class="metric-sub">of 320 KB total</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--amber)">
+      <div class="metric-label">CPU Temperature</div><div class="metric-value">42 °C</div><div class="metric-sub">normal range</div>
+    </div>
+    <div class="metric-card" style="--accent-color:var(--purple)">
+      <div class="metric-label">Battery</div><div class="metric-value">78%</div><div class="metric-sub">~6h remaining</div>
+    </div>
+  </div>
+
+  <!-- RTC Status Card in Device Status -->
+  <div class="rtc-card mb-4" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="width:44px;height:44px;border-radius:12px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0"><i class="ti ti-clock-bolt"></i></div>
+    <div style="flex:1">
+      <div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.6px">RTC Status — DS3231</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text)" id="rtcLiveTime">${timeStr}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="chip online"><div class="dot pulse"></div>DS3231 Connected ✅</span>
+      <span class="pill blue"><i class="ti ti-battery" style="font-size:11px"></i> Battery Backed</span>
+      <span class="pill teal">I²C 0x68</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="section-title"><i class="ti ti-cpu"></i>All Hardware Components</div>
+      <span class="pill green">${devices.filter(d=>d.status==='online').length}/${devices.length} Online</span>
+    </div>
+    ${devices.map(d=>`
+    <div class="device-row">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="device-icon" style="color:var(--${statusColor[d.status]||'blue'})"><i class="ti ${d.icon}"></i></div>
+        <div>
+          <div style="font-weight:600;font-size:13px">${d.name}</div>
+          <div style="font-size:11px;color:var(--text2)">${d.val}</div>
+          <div style="font-size:10px;color:var(--text3)">${d.detail}</div>
+        </div>
+      </div>
+      <span class="pill ${statusColor[d.status]||'blue'}" style="flex-shrink:0">${statusLabel[d.status]||d.status}</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+/* ══ CHART BUILDING ══ */
+function buildCharts(){
+  const tc=darkMode?'#7b9fd4':'#64748b';
+  const gc=darkMode?'#1e3155':'#e2e8f0';
+  const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  if(document.getElementById('weekChart')){
+    charts.week=new Chart(document.getElementById('weekChart'),{
+      type:'bar',
+      data:{labels:days,datasets:[{label:'Compliance %',data:weekData,backgroundColor:weekData.map(v=>v>=80?'#16a34a':v>=60?'#d97706':'#dc2626'),borderRadius:5,borderSkipped:false}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:100,ticks:{color:tc,callback:v=>v+'%'},grid:{color:gc}},x:{ticks:{color:tc},grid:{display:false}}}}
+    });
+  }
+  if(document.getElementById('medChart')){
+    charts.med=new Chart(document.getElementById('medChart'),{
+      type:'doughnut',
+      data:{labels:['Morning','Afternoon','Night'],datasets:[{data:[90,75,65],backgroundColor:['#16a34a','#d97706','#dc2626'],borderWidth:0}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'68%'}
+    });
+  }
+  if(document.getElementById('monthChart')){
+    charts.month=new Chart(document.getElementById('monthChart'),{
+      type:'line',
+      data:{labels:monthData.map((_,i)=>(i+1).toString()),datasets:[{label:'Compliance %',data:monthData,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.10)',fill:true,tension:.4,pointRadius:2,pointBackgroundColor:'#2563eb',pointHoverRadius:5}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:50,max:100,ticks:{color:tc,callback:v=>v+'%'},grid:{color:gc}},x:{ticks:{color:tc,maxTicksLimit:10},grid:{display:false}}}}
+    });
+  }
+}
+
+/* ══ MODALS ══ */
+function showAddMed(){
+  document.getElementById('modalContainer').innerHTML=`
+  <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-title">
+        <span style="display:flex;align-items:center;gap:8px"><i class="ti ti-pill" style="color:var(--blue)"></i>Add New Medicine</span>
+        <button class="btn xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><div class="form-label">Medicine Name *</div><input type="text" id="mName" placeholder="e.g. Metformin"></div>
+        <div class="form-group"><div class="form-label">Dosage *</div><input type="text" id="mDose" placeholder="e.g. 500mg"></div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Frequency</div>
+        <select id="mFreq"><option>Once daily</option><option>Twice daily</option><option>Three times daily</option></select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Compartment / Slot (select time slots)</div>
+        <div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="mMorn"> 🌅 Morning (Servo Motor 1)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="mAft"> 🌤 Afternoon (Servo Motor 2)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="mNight"> 🌙 Night (Servo Motor 3)</label>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><div class="form-label">Start Date</div><input type="date" id="mStart"></div>
+        <div class="form-group"><div class="form-label">End Date</div><input type="date" id="mEnd"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn primary" onclick="saveMed()"><i class="ti ti-check"></i>Save Medicine</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showEditMed(id){
+  const m=meds.find(x=>x.id===id);
+  if(!m)return;
+  document.getElementById('modalContainer').innerHTML=`
+  <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-title">
+        <span style="display:flex;align-items:center;gap:8px"><i class="ti ti-edit" style="color:var(--blue)"></i>Edit: ${m.name}</span>
+        <button class="btn xs" onclick="closeModal()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><div class="form-label">Medicine Name</div><input type="text" value="${m.name}" id="mName"></div>
+        <div class="form-group"><div class="form-label">Dosage</div><input type="text" value="${m.dosage}" id="mDose"></div>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Compartment / Slot</div>
+        <div style="display:flex;gap:16px;margin-top:6px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="mMorn" ${m.morning?'checked':''}> 🌅 Morning (Servo 1)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="mAft" ${m.afternoon?'checked':''}> 🌤 Afternoon (Servo 2)</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;cursor:pointer"><input type="checkbox" id="mNight" ${m.night?'checked':''}> 🌙 Night (Servo 3)</label>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="form-group"><div class="form-label">Start Date</div><input type="date" id="mStart" value="${m.start}"></div>
+        <div class="form-group"><div class="form-label">End Date</div><input type="date" id="mEnd" value="${m.end}"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn primary" onclick="updateMed(${id})"><i class="ti ti-check"></i>Update</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function updateMed(id){
+  const m=meds.find(x=>x.id===id);
+  if(!m)return;
+  m.name=document.getElementById('mName').value||m.name;
+  m.dosage=document.getElementById('mDose').value||m.dosage;
+  m.morning=document.getElementById('mMorn').checked;
+  m.afternoon=document.getElementById('mAft').checked;
+  m.night=document.getElementById('mNight').checked;
+  m.start=document.getElementById('mStart').value||m.start;
+  m.end=document.getElementById('mEnd').value||m.end;
+  closeModal();render();
+}
+
+function closeModal(){document.getElementById('modalContainer').innerHTML='';}
+
+function deleteMed(id){
+  if(confirm('Delete this medicine and all its reminders?')){
+    const i=meds.findIndex(m=>m.id===id);
+    if(i>-1){meds.splice(i,1);render();}
+  }
+}
+
+function saveMed(){
+  const n=document.getElementById('mName').value.trim();
+  if(!n){alert('Please enter a medicine name.');return;}
+  meds.push({
+    id:Date.now(),name:n,dosage:document.getElementById('mDose').value,
+    freq:document.getElementById('mFreq').value,
+    morning:document.getElementById('mMorn').checked,
+    afternoon:document.getElementById('mAft').checked,
+    night:document.getElementById('mNight').checked,
+    start:document.getElementById('mStart').value,
+    end:document.getElementById('mEnd').value,
+    color:'blue',taken:false
+  });
+  closeModal();render();
+}
+
+function ackDose(){
+  const toast=document.createElement('div');
+  toast.style.cssText='position:fixed;bottom:24px;right:24px;background:#16a34a;color:#fff;padding:12px 18px;border-radius:10px;font-weight:600;font-size:13px;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px';
+  toast.innerHTML='<i class="ti ti-check" style="font-size:18px"></i> Dose acknowledged! Servo motor dispensing...';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(),3200);
+}
+
+function snoozeDose(){
+  const toast=document.createElement('div');
+  toast.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--amber);color:#fff;padding:12px 18px;border-radius:10px;font-weight:600;font-size:13px;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px';
+  toast.innerHTML='<i class="ti ti-clock" style="font-size:18px"></i> Reminder snoozed for 10 minutes';
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(),2800);
+}
+
+function dispense(slot){
+  const comp=compartments.find(c=>c.slot===slot);
+  if(comp && comp.state==='empty'){alert('Compartment is empty! Refill required.');return;}
+  const toast=document.createElement('div');
+  toast.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--blue);color:#fff;padding:12px 18px;border-radius:10px;font-weight:600;font-size:13px;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px';
+  const servoNum=slot==='Morning'?1:slot==='Afternoon'?2:3;
+  toast.innerHTML=`<i class="ti ti-settings-automation" style="font-size:18px"></i> ${slot} Compartment — Servo Motor ${servoNum} activated!`;
+  document.body.appendChild(toast);
+  setTimeout(()=>toast.remove(),3000);
+}
+
+function markAllRead(){notifs.forEach(n=>n.read=true);render();}
+function markRead(i){notifs[i].read=true;render();}
+
+render();
+</script>
+</body>
+</html>
